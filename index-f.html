@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - F Major + Persistent Effects</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; }
+  button, select { margin: 5px; padding: 10px 16px; font-size: 16px; border-radius: 5px; border: none; background: #333; color: #eee; cursor: pointer; }
+  button.key-active { background: #4caf50; }
+  #keysContainer { margin-top: 20px; display: flex; flex-wrap: wrap; }
+  #currentEffect { margin-top: 10px; font-weight: bold; color: #0f0; }
+</style>
+</head>
+<body>
+
+<h2>🎹 Play Notes (Keyboard or Click Buttons):</h2>
+<div id="keysContainer"></div>
+
+<h3>🎛️ Select Effect Chain (Or press 1-4):</h3>
+<select id="effectSelector">
+  <option value="none">1️⃣ No Effect</option>
+  <option value="echo">2️⃣ Echo (Delay)</option>
+  <option value="reverb">3️⃣ Reverb</option>
+  <option value="both">4️⃣ Echo + Reverb</option>
+</select>
+<div id="currentEffect">Current Effect: No Effect</div>
+
+<button id="startBtn">Start Audio</button>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+  const keys = ['a','s','d','f','g','h','j','k','l',';','\''];
+  const notes = ['A2','Bb2','C3','F3','G3','A3','Bb3','C4','D4','E4','F4'];
+
+  const keysContainer = document.getElementById('keysContainer');
+  const start
