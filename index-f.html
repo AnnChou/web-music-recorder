@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - Effects Chain - F Major Mapping</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; }
+  button, select { margin: 5px; padding: 10px 16px; font-size: 16px; border-radius: 5px; border: none; background: #333; color: #eee; cursor: pointer; }
+  button.key-active { background: #4caf50; }
+  #keysContainer { margin-top: 20px; display: flex; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<h2>🎹 Play Notes (Keyboard or Click Buttons):</h2>
+<div id="keysContainer"></div>
+
+<h3>🎛️ Select Effect Chain:</h3>
+<select id="effectSelector">
+  <option value="none">No Effect</option>
+  <option value="echo">Echo (Delay)</option>
+  <option value="reverb">Reverb</option>
+  <option value="both">Echo + Reverb</option>
+</select>
+
+<button id="startBtn">Start Audio</button>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+  // Ergonomic mapping: a, s, d are below f, g, h...
+  const keys = ['a','s','d','f','g','h','j','k','l',';','\''];
+  const notes = ['A2','Bb2','C3','F3','G3','A3','Bb3','C4','D4','E4','F4'];
+
+  const keysContainer = document.getElementById('keysContainer');
+  const startBtn = document.getElementById('startBtn');
+  const effectSelector = document.getElementById('effectSelector');
+
+  let synth, delay, reverb, currentEffect;
+
+  // Create buttons for keys
+  keys.forEach((key, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = `${key.toUpperCase()} (${notes[i]})`;
+    btn.dataset.note = notes[i];
+    btn.dataset.key = key;
+    keysContainer.appendChild(btn);
+
+    btn.addEventListener('mousedown', () => {
+      playNote(btn.dataset.note);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+  });
+
+  async function initAudio() {
+    await Tone.start();
+    synth = new Tone.Synth().toDestination();
+    delay = new Tone.FeedbackDelay("8n", 0.5);
+    reverb = new Tone.Reverb(3);
+    await reverb.generate();
+    updateEffectChain();
+    startBtn.style.display = 'none';
+    console.log('Audio started');
+  }
+
+  startBtn.addEventListener('click', initAudio);
+
+  function updateEffectChain() {
+    synth.disconnect();
+    delay.disconnect();
+    reverb.disconnect();
+
+    const effect = effectSelector.value;
+    if (effect === "none") {
+      synth.connect(Tone.Destination);
+    } else if (effect === "echo") {
+      synth.connect(delay);
+      delay.connect(Tone.Destination);
+    } else if (effect === "reverb") {
+      synth.connect(reverb);
+      reverb.connect(Tone.Destination);
+    } else if (effect === "both") {
+      synth.connect(delay);
+      delay.connect(reverb);
+      reverb.connect(Tone.Destination);
+    }
+  }
+
+  effectSelector.addEventListener('change', updateEffectChain);
+
+  function playNote(note) {
+    if (synth) synth.triggerAttackRelease(note, '4n');
+  }
+
+  window.addEventListener('keydown', e => {
+    if (!synth) return;
+    const key = e.key.toLowerCase();
+    if (!keys.includes(key)) return;
+    const btn = [...keysContainer.children].find(b => b.dataset.key === key);
+    if (btn) {
+      btn.classList.add('key-active');
+      playNote(btn.dataset.note);
+      setTimeout(() => btn.classList.remove('key-active'), 100);
+    }
+  });
+</script>
+
+</body>
+</html>
