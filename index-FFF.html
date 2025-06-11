@@ -88,7 +88,7 @@
     // Keyboard row: F G H J K L ; '
     'f': 'F4', 'g': 'G4', 'h': 'A4', 'j': 'Bb4', 'k': 'C5', 'l': 'D5', ';': 'E5', '\'': 'F5',
     // Bottom row for chords/effects (optional)
-    'a': 'D4', 's': 'E4', 'd': 'F4',
+    'a': 'B3', 's': 'C4', 'd': 'D4',
   };
 
   // Create UI buttons for play keys
@@ -129,4 +129,229 @@
     btn.addEventListener('click', () => {
       setEffect(effectName);
       highlightEffectButton(btn);
-    })
+    });
+    effectsContainer.appendChild(btn);
+  }
+
+  function highlightEffectButton(activeBtn) {
+    for (const btn of effectsContainer.children) {
+      btn.classList.remove('effect-active');
+    }
+    if (activeBtn) activeBtn.classList.add('effect-active');
+  }
+
+  function setEffect(effectName) {
+    currentEffect = effectName;
+    updateEffectChain();
+
+    // Automatically clear effect after 3 seconds
+    if (effectTimeout) clearTimeout(effectTimeout);
+    if (effectName !== 'none') {
+      effectTimeout = setTimeout(() => {
+        setEffect('none');
+        highlightEffectButton(null);
+      }, 3000);
+    }
+  }
+
+  let effectTimeout = null;
+  highlightEffectButton(null);
+
+  // --- Play Note Function ---
+  function playNote(note) {
+    synth.triggerAttackRelease(note, '8n');
+  }
+
+  // --- Keyboard event for notes and effects ---
+  window.addEventListener('keydown', e => {
+    const key = e.key.toLowerCase();
+    if (keyNoteMap[key]) {
+      playNote(keyNoteMap[key]);
+      const btn = [...keysContainer.children].find(b => b.dataset.key === key);
+      if (btn) {
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 150);
+      }
+    } else if (effectKeyMap[key]) {
+      setEffect(effectKeyMap[key]);
+      const btn = [...effectsContainer.children].find(b => b.dataset.key === key);
+      highlightEffectButton(btn);
+    }
+  });
+
+  // --- Melodion samples (pre-recorded audio) ---
+  const melodionSamples = [
+    // Replace these URLs with your own 30s melodion clips!
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion1.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion2.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion3.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion4.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion5.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion6.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion7.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion8.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion9.wav',
+    'https://cdn.jsdelivr.net/gh/annchou/web-music-recorder/samples/melodion10.wav'
+  ];
+
+  const melodionContainer = document.getElementById('melodionContainer');
+  const melodionAudios = [];
+  melodionSamples.forEach((url, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = `${i+1}`;
+    btn.title = `Play Melodion Sample ${i+1}`;
+    melodionContainer.appendChild(btn);
+
+    const audio = new Audio(url);
+    melodionAudios.push(audio);
+
+    btn.addEventListener('click', () => {
+      audio.currentTime = 0;
+      audio.play();
+      btn.classList.add('key-active');
+      setTimeout(() => btn.classList.remove('key-active'), 200);
+    });
+  });
+
+  // Keyboard number keys to play melodion samples
+  window.addEventListener('keydown', e => {
+    if (/^[1-9]$/.test(e.key)) {
+      const idx = parseInt(e.key, 10) - 1;
+      if (melodionAudios[idx]) {
+        melodionAudios[idx].currentTime = 0;
+        melodionAudios[idx].play();
+        const btn = melodionContainer.children[idx];
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 200);
+      }
+    } else if (e.key === '0') {
+      // 0 as 10th sample
+      if (melodionAudios[9]) {
+        melodionAudios[9].currentTime = 0;
+        melodionAudios[9].play();
+        const btn = melodionContainer.children[9];
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 200);
+      }
+    }
+  });
+
+  // --- Mic recording setup ---
+  const recordMicBtn = document.getElementById('recordMicBtn');
+  const micControlsContainer = document.getElementById('micControlsContainer');
+
+  let micStream = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let isRecording = false;
+  let recordedAudioURL = null;
+  let audioElement = null;
+  let isAudioMuted = false;
+  let downloadBtn = null;
+  let muteBtn = null;
+
+  async function startMicRecording() {
+    if (!micStream) {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        alert('Microphone access denied or unavailable.');
+        return;
+      }
+    }
+    mediaRecorder = new MediaRecorder(micStream);
+    chunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      if (recordedAudioURL) {
+        URL.revokeObjectURL(recordedAudioURL); // free old url
+      }
+      const blob = new Blob(chunks, { type: 'audio/wav' });
+      recordedAudioURL = URL.createObjectURL(blob);
+
+      // Create or update audio element for playback
+      if (!audioElement) {
+        audioElement = document.createElement('audio');
+        audioElement.controls = true;
+        audioElement.style.display = 'block';
+        audioElement.style.marginTop = '10px';
+        micControlsContainer.appendChild(audioElement);
+      }
+      audioElement.src = recordedAudioURL;
+      audioElement.muted = isAudioMuted;
+
+      // Create download button if doesn't exist
+      if (!downloadBtn) {
+        downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download Recording';
+        downloadBtn.style.marginLeft = '10px';
+        micControlsContainer.appendChild(downloadBtn);
+        downloadBtn.addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.href = recordedAudioURL;
+          a.download = `mic-recording-${Date.now()}.wav`;
+          a.click();
+        });
+      }
+
+      // Create mute toggle button if doesn't exist
+      if (!muteBtn) {
+        muteBtn = document.createElement('button');
+        muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
+        muteBtn.style.marginLeft = '10px';
+        micControlsContainer.appendChild(muteBtn);
+        muteBtn.addEventListener('click', () => {
+          isAudioMuted = !isAudioMuted;
+          audioElement.muted = isAudioMuted;
+          muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
+        });
+      }
+
+      console.log('Recording stopped and ready for playback/download.');
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    recordMicBtn.textContent = 'Stop Mic Recording';
+    recordMicBtn.classList.add('recording');
+
+    // Clear previous playback & download UI
+    if (audioElement) {
+      audioElement.src = '';
+    }
+    if (downloadBtn) {
+      downloadBtn.remove();
+      downloadBtn = null;
+    }
+    if (muteBtn) {
+      muteBtn.remove();
+      muteBtn = null;
+    }
+  }
+
+  function stopMicRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    isRecording = false;
+    recordMicBtn.textContent = 'Start Mic Recording';
+    recordMicBtn.classList.remove('recording');
+  }
+
+  recordMicBtn.addEventListener('click', () => {
+    if (!isRecording) {
+      startMicRecording();
+    } else {
+      stopMicRecording();
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
