@@ -1,80 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Web Music Recorder - G Major</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #222;
-      color: #eee;
-      text-align: center;
-    }
-    button {
-      font-size: 1.2rem;
-      padding: 10px 20px;
-      margin: 10px;
-      cursor: pointer;
-    }
-    #waveform {
-      width: 100%;
-      height: 100px;
-      margin: 20px 0;
-      background: #333;
-      border-radius: 5px;
-    }
-    .key {
-      display: inline-block;
-      width: 40px;
-      height: 100px;
-      margin: 3px;
-      background: #555;
-      border-radius: 5px;
-      line-height: 100px;
-      font-weight: bold;
-      user-select: none;
-      cursor: pointer;
-      color: white;
-      transition: background 0.2s ease;
-    }
-    .key.active {
-      background: #0a84ff;
-      box-shadow: 0 0 10px #0a84ff;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - Synth & Mic Mode</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background: #222; color: #eee; }
+  button { margin: 4px; padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  button.active { background: #4caf50; color: white; }
+  #keys-container button, #clip-keys-container button { width: 40px; height: 40px; margin: 3px; font-weight: bold; }
+  #recordings button { margin: 2px; }
+  #waveform { background: #000; width: 100%; height: 120px; display: block; margin-top: 15px; border-radius: 4px; }
+  #effects button { margin: 4px; }
+  #mode-toggle { margin-left: 20px; }
+  .key-active { background-color: #666; }
+</style>
 </head>
 <body>
 
-  <h1>Web Music Recorder - G Major Scale</h1>
-  <button id="start-btn">Start Audio</button>
-  <div id="instructions">
-    <p>Play notes with keys: A S D F G H J K L</p>
-    <p>Record up to 10 audio loops by pressing Record then number keys 1-10 to play</p>
+<h2>Web Music Recorder - Synth & Mic Mode</h2>
+
+<button id="start-btn">Start Audio</button>
+<button id="mode-toggle" disabled>Mode: Synth</button>
+
+<div style="margin-top: 12px;">
+  <strong>Effects:</strong>
+  <button data-effect="crisp" class="effect-btn active">Crisp</button>
+  <button data-effect="echo" class="effect-btn">Echo</button>
+  <button data-effect="reverb" class="effect-btn">Reverb</button>
+</div>
+
+<div style="margin-top: 12px;">
+  <strong>Keyboard (G Major scale):</strong><br />
+  <div id="keys-container">
+    <!-- keys will be created by JS -->
   </div>
+</div>
 
-  <div id="keys">
-    <div class="key" data-note="G4">A</div>
-    <div class="key" data-note="A4">S</div>
-    <div class="key" data-note="B4">D</div>
-    <div class="key" data-note="C5">F</div>
-    <div class="key" data-note="D5">G</div>
-    <div class="key" data-note="E5">H</div>
-    <div class="key" data-note="F#5">J</div>
-    <div class="key" data-note="G5">K</div>
-    <div class="key" data-note="A5">L</div>
+<div style="margin-top: 12px;">
+  <strong>Playback Clips (Z-M keys):</strong><br />
+  <div id="clip-keys-container">
+    <!-- playback clip keys -->
   </div>
+</div>
 
-  <div style="margin-top: 20px;">
-    <button id="record-btn">Record</button>
-    <button id="stop-btn" disabled>Stop</button>
+<div style="margin-top: 12px;">
+  <strong>Recordings (1-9,0 keys):</strong><br />
+  <div id="recordings">
+    <!-- record/stop/play buttons created by JS -->
   </div>
+</div>
 
-  <canvas id="waveform"></canvas>
+<canvas id="waveform"></canvas>
 
-  <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
-  <script src="script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
