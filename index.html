@@ -1,3 +1,14 @@
+<button id="start-btn">Start Audio</button>
+
+<script>
+  const startBtn = document.getElementById('start-btn');
+  startBtn.addEventListener('click', async () => {
+    await Tone.start();
+    console.log('Audio context started');
+    startBtn.style.display = 'none';  // hide button after start
+  });
+</script>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -116,6 +127,7 @@
 <script src="https://unpkg.com/wavesurfer.js"></script>
 
 <script>
+
   // Tone.js synth + effects setup
   const synth = new Tone.Synth().toDestination();
   const delay = new Tone.FeedbackDelay("8n", 0.4).toDestination();
