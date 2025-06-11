@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Music Recorder - F Major + Effects + Mic + Samples</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; }
+  button, select { margin: 5px; padding: 10px 16px; font-size: 16px; border-radius: 5px; border: none; background: #333; color: #eee; cursor: pointer; }
+  button.key-active { background: #4caf50; }
+  button.effect-active { background: #2196f3; }
+  #keysContainer, #samplesContainer, #effectsContainer { margin-top: 20px; display: flex; flex-wrap: wrap; }
+  #currentEffect { margin-top: 10px; font-weight: bold; color: #0f0; }
+</style>
+</head>
+<body>
+
+<h2>🎹 Play Notes (F Major, C4 upwards):</h2>
+<div id="keysContainer"></div>
+
+<h3>🎶 Play Built-in Sample Audio Files (1-0):</h3>
+<div id="samplesContainer"></div>
+
+<h3>🎛️ Effects (Press z x c v b n):</h3>
+<div id="effectsContainer">
+  <button class="effect-btn" data-effect="none">Z️⃣ No Effect</button>
+  <button class="effect-btn" data-effect="echo">X️⃣ Echo</button>
+  <button class="effect-btn" data-effect="reverb">C️⃣ Reverb</button>
+  <button class="effect-btn" data-effect="both">V️⃣ Echo + Reverb</button>
+  <button class="effect-btn" data-effect="crisp">B️⃣ Crisp (Short Decay)</button>
+  <button class="effect-btn" data-effect="fade">N️⃣ Long Fade</button>
+</div>
+<div id="currentEffect">Current Effect: No Effect</div>
+
+<button id="startBtn">Start Audio</button>
+<button id="micToggleBtn">🎙️ Toggle Mic Monitor</button>
+<button id="recordBtn">⏺️ Start Recording</button>
+<button id="stopRecordBtn" disabled>⏹️ Stop Recording</button>
+<a id="downloadLink" style="display:none; margin-left:10px; color:#0f0;">📥 Download Recording</a>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+  const keys = ['a','s','d','f','g','h','j','k','l',';','\''];
+  const notes = ['C4','D4','E4','F4','G4','A4','Bb4','C5','D5','E5','F5'];
+
+  const effectKeys = ['z','x','c','v','b','n'];
+  const effectMap = { 'z': 'none', 'x': 'echo', 'c': 'reverb', 'v': 'both', 'b': 'crisp', 'n': 'fade' };
+
+  const keysContainer = document.getElementById('keysContainer');
+  const effectsContainer = document.getElementById('effectsContainer');
+  const samplesContainer = document.getElementById('samplesContainer');
+  const currentEffect = document.getElementById('currentEffect');
+  const startBtn = document.getElementById('startBtn');
+  const micToggleBtn = document.getElementById('micToggleBtn');
+  const recordBtn = document.getElementById('recordBtn');
+  const stopRecordBtn = document.getElementById('stopRecordBtn');
+  const downloadLink = document.getElementById('downloadLink');
+
+  let synth, delay, reverb, crispSynth, fadeSynth;
+  let activeEffect = 'none';
+
+  let micStream, mediaRecorder, recordedChunks = [], micActive = false;
+
+  const sampleUrls = [
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop1.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop2.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop3.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop4.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop5.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop6.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop7.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop8.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop9.ogg',
+    'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/audio-basics/audio/loop10.ogg'
+  ];
+
+  const players = new Tone.Players(
+    sampleUrls.reduce((acc, url, i) => { acc[(i+1)%10] = url; return acc; }, {})
+  ).toDestination();
+
+  keys.forEach((key, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = `${key.toUpperCase()} (${notes[i]})`;
+    btn.dataset.note = notes[i];
+    btn.dataset.key = key;
+    keysContainer.appendChild(btn);
+
+    btn.addEventListener('mousedown', () => {
+      playNote(btn.dataset.note);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+  });
+
+  for (let i = 1; i <= 10; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = `${i%10}`;
+    btn.dataset.sample = i%10;
+    samplesContainer.appendChild(btn);
+    btn.addEventListener('click', () => players.player(btn.dataset.sample).start());
+  }
+
+  async function initAudio() {
+    await Tone.start();
+    synth = new Tone.Synth().toDestination();
+    delay = new Tone.FeedbackDelay("8n", 0.5);
+    reverb = new Tone.Reverb(3);
+    crispSynth = new Tone.Synth({ envelope: { attack: 0.005, decay: 0.1, sustain: 0.1, release: 0.05 } }).toDestination();
+    fadeSynth = new Tone.Synth({ envelope: { attack: 0.01, decay: 2, sustain: 0.5, release: 4 } }).toDestination();
+    await reverb.generate();
+    updateEffectChain(activeEffect);
+    startBtn.style.display = 'none';
+  }
+
+  function updateEffectChain(effect) {
+    synth.disconnect();
+    delay.disconnect();
+    reverb.disconnect();
+    document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('effect-active'));
+
+    if (effect === "none") {
+      synth.connect(Tone.Destination);
+      currentEffect.textContent = "Current Effect: 🎵 No Effect";
+    } else if (effect === "echo") {
+      synth.connect(delay);
+      delay.connect(Tone.Destination);
+      currentEffect.textContent = "Current Effect: 🔁 Echo";
+    } else if (effect === "reverb") {
+      synth.connect(reverb);
+      reverb.connect(Tone.Destination);
+      currentEffect.textContent = "Current Effect: 🌌 Reverb";
+    } else if (effect === "both") {
+      synth.connect(delay);
+      delay.connect(reverb);
+      reverb.connect(Tone.Destination);
+      currentEffect.textContent = "Current Effect: 🔁🌌 Echo + Reverb";
+    } else if (effect === "crisp") {
+      currentEffect.textContent = "Current Effect: ✨ Crisp";
+    } else if (effect === "fade") {
+      currentEffect.textContent = "Current Effect: 🌙 Long Fade";
+    }
+
+    const activeBtn = document.querySelector(`button[data-effect='${effect}']`);
+    if (activeBtn) activeBtn.classList.add('effect-active');
+    activeEffect = effect;
+  }
+
+  function playNote(note) {
+    if (!synth) return;
+
+    if (activeEffect === 'crisp') {
+      crispSynth.triggerAttackRelease(note, '8n');
+    } else if (activeEffect === 'fade') {
+      fadeSynth.triggerAttackRelease(note, '8n');
+    } else {
+      synth.triggerAttackRelease(note, '4n');
+    }
+  }
+
+  startBtn.addEventListener('click', initAudio);
+
+  effectsContainer.addEventListener('click', e => {
+    if (e.target.dataset.effect) updateEffectChain(e.target.dataset.effect);
+  });
+
+  window.addEventListener('keydown', e => {
+    if (!synth) return;
+    const key = e.key.toLowerCase();
+
+    if (keys.includes(key)) {
+      const btn = [...keysContainer.children].find(b => b.dataset.key === key);
+      if (btn) {
+        btn.classList.add('key-active');
+        playNote(btn.dataset.note);
+        setTimeout(() => btn.classList.remove('key-active'), 100);
+      }
+      return;
+    }
+
+    if (Object.keys(effectMap).includes(key)) {
+      updateEffectChain(effectMap[key]);
+      return;
+    }
+
+    if (/^[0-9]$/.test(key)) {
+      players.player(key).start();
+      return;
+    }
+  });
+
+  micToggleBtn.addEventListener('click', async () => {
+    if (!micActive) {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const micSource = Tone.context.createMediaStreamSource(micStream);
+      micSource.connect(Tone.Destination);
+      micActive = true;
+      micToggleBtn.textContent = '🎙️ Mute Mic Monitor';
+    } else {
+      micStream.getTracks().forEach(track => track.stop());
+      micActive = false;
+      micToggleBtn.textContent = '🎙️ Toggle Mic Monitor';
+    }
+  });
+
+  recordBtn.addEventListener('click', async () => {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(micStream);
+    recordedChunks = [];
+
+    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = 'recording.webm';
+      downloadLink.style.display = 'inline';
+      downloadLink.textContent = '📥 Download Recording';
+    };
+
+    mediaRecorder.start();
+    recordBtn.disabled = true;
+    stopRecordBtn.disabled = false;
+  });
+
+  stopRecordBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recordBtn.disabled = false;
+    stopRecordBtn.disabled = true;
+  });
+</script>
+
+</body>
+</html>
