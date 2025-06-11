@@ -29,6 +29,7 @@
     cursor: pointer;
     min-width: 48px;
     user-select: none;
+    white-space: pre;
   }
   button.key-active {
     background: #4caf50;
@@ -62,258 +63,227 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
 <script>
-(async () => {
+  // Wrap all logic in an async function to use await
+  async function setup() {
+    await Tone.start();
 
-  await Tone.start(); // Start Audio Context early
+    const keys = ['f','g','h','j','k','l',';','\''];
+    const notes = ['C4','D4','E4','F4','G4','A4','B4','C5'];
 
-  // Keys mapped to F Major scale starting at C4, one octave up to match your request:
-  // Keys: F G H J K L ; '
-  // Notes: C4 D4 E4 F4 G4 A4 B4 C5 D5
-  const keys = ['f','g','h','j','k','l',';','\''];
-  const notes = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+    const effectKeys = ['z','x','c','v','b','n'];
+    const effectNames = ['No Effect', 'Echo', 'Reverb', 'Echo + Reverb', 'Crisp', 'Fade'];
 
-  // Effects mapped to keys Z, X, C, V, B, N
-  const effectKeys = ['z','x','c','v','b','n'];
-  const effectNames = ['No Effect', 'Echo', 'Reverb', 'Echo + Reverb', 'Crisp', 'Fade'];
+    const sampleKeys = ['1','2','3','4','5','6','7','8','9','0'];
+    const sampleFiles = [
+      '/samples/1.wav','/samples/2.wav','/samples/3.wav','/samples/4.wav','/samples/5.wav',
+      '/samples/6.wav','/samples/7.wav','/samples/8.wav','/samples/9.wav','/samples/10.wav'
+    ];
 
-  // Sample playback keys 1-0 (10 samples)
-  const sampleKeys = ['1','2','3','4','5','6','7','8','9','0'];
+    const keysContainer = document.getElementById('keysContainer');
+    const effectsContainer = document.getElementById('effectsContainer');
+    const samplesContainer = document.getElementById('samplesContainer');
+    const micToggleBtn = document.getElementById('micToggleBtn');
+    const statusDiv = document.getElementById('status');
 
-  // Sample file URLs (update these paths with your actual wav files)
-  const sampleFiles = [
-    '/samples/1.wav','/samples/2.wav','/samples/3.wav','/samples/4.wav','/samples/5.wav',
-    '/samples/6.wav','/samples/7.wav','/samples/8.wav','/samples/9.wav','/samples/10.wav'
-  ];
+    const synth = new Tone.Synth().toDestination();
 
-  // UI Elements
-  const keysContainer = document.getElementById('keysContainer');
-  const effectsContainer = document.getElementById('effectsContainer');
-  const samplesContainer = document.getElementById('samplesContainer');
-  const micToggleBtn = document.getElementById('micToggleBtn');
-  const statusDiv = document.getElementById('status');
+    const echo = new Tone.FeedbackDelay("8n", 0.5).toDestination();
+    const reverb = new Tone.Reverb({decay: 3, wet: 0.3}).toDestination();
+    await reverb.generate();
+    const crisp = new Tone.Distortion(0.4).toDestination();
+    const fade = new Tone.Panner(0).toDestination();
 
-  // Create synth and effects chain
-  const synth = new Tone.Synth().toDestination();
+    let currentEffect = 'No Effect';
 
-  // Effects nodes
-  const echo = new Tone.FeedbackDelay("8n", 0.5).toDestination();
-  const reverb = new Tone.Reverb({decay: 3, wet: 0.3}).toDestination();
-  await reverb.generate(); // generate reverb impulse response
-  const crisp = new Tone.Distortion(0.4).toDestination();
-  const fade = new Tone.Panner(0).toDestination();
+    function connectEffect(effect) {
+      synth.disconnect();
+      if(mic) mic.disconnect();
 
-  // Chain routing helpers
-  // We'll connect synth to effect node based on selected effect, then to destination
-  // mic will connect to same effect chain when enabled
-
-  // Current effect state
-  let currentEffect = 'No Effect';
-
-  // Map effect name to function connecting synth/mic to nodes
-  function connectEffect(effect) {
-    // Disconnect everything first
-    synth.disconnect();
-    if(mic) mic.disconnect();
-
-    switch(effect) {
-      case 'No Effect':
-        synth.connect(Tone.Destination);
-        if(mic) mic.connect(Tone.Destination);
-        break;
-      case 'Echo':
-        synth.connect(echo);
-        if(mic) mic.connect(echo);
-        break;
-      case 'Reverb':
-        synth.connect(reverb);
-        if(mic) mic.connect(reverb);
-        break;
-      case 'Echo + Reverb':
-        synth.connect(echo);
-        echo.connect(reverb);
-        if(mic) mic.connect(echo);
-        break;
-      case 'Crisp':
-        synth.connect(crisp);
-        if(mic) mic.connect(crisp);
-        break;
-      case 'Fade':
-        synth.connect(fade);
-        if(mic) mic.connect(fade);
-        // Implement fade effect by panning from center to sides slowly
-        fade.pan.rampTo(1, 3);
-        setTimeout(() => fade.pan.rampTo(0, 3), 3000);
-        break;
-    }
-  }
-
-  // Initialize with No Effect
-  connectEffect(currentEffect);
-
-  // Create keyboard buttons UI
-  keys.forEach((key, i) => {
-    const btn = document.createElement('button');
-    btn.textContent = key.toUpperCase() + '\n(' + notes[i] + ')';
-    btn.dataset.note = notes[i];
-    btn.dataset.key = key;
-    btn.style.whiteSpace = "pre"; // preserve new line
-    keysContainer.appendChild(btn);
-
-    btn.addEventListener('mousedown', () => {
-      playNote(btn.dataset.note);
-      btn.classList.add('key-active');
-    });
-    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
-    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
-  });
-
-  // Create effect buttons UI
-  effectNames.forEach((name, i) => {
-    const btn = document.createElement('button');
-    btn.textContent = effectKeys[i].toUpperCase() + '\n' + name;
-    btn.dataset.effect = name;
-    btn.dataset.key = effectKeys[i];
-    btn.style.whiteSpace = "pre";
-    effectsContainer.appendChild(btn);
-
-    btn.addEventListener('click', () => {
-      selectEffect(name);
-    });
-  });
-
-  // Create sample buttons UI
-  sampleKeys.forEach((key, i) => {
-    const btn = document.createElement('button');
-    btn.textContent = key;
-    btn.dataset.key = key;
-    btn.dataset.sampleIndex = i;
-    samplesContainer.appendChild(btn);
-
-    btn.addEventListener('click', () => {
-      playSample(i);
-    });
-  });
-
-  // Play note function
-  function playNote(note) {
-    synth.triggerAttackRelease(note, '8n');
-  }
-
-  // Play sample function
-  const player = new Tone.Player().toDestination();
-  function playSample(i) {
-    player.load(sampleFiles[i]).then(() => {
-      player.start();
-    });
-  }
-
-  // Effect selection
-  function selectEffect(name) {
-    currentEffect = name;
-    connectEffect(name);
-    updateEffectButtons();
-    statusDiv.textContent = "Effect: " + name;
-  }
-
-  // Update effect button styles
-  function updateEffectButtons() {
-    Array.from(effectsContainer.children).forEach(btn => {
-      btn.classList.toggle('effect-active', btn.dataset.effect === currentEffect);
-    });
-  }
-
-  updateEffectButtons();
-
-  // Mic setup
-  let mic, micStarted = false;
-  micToggleBtn.addEventListener('click', async () => {
-    if (!micStarted) {
-      try {
-        mic = new Tone.UserMedia();
-        await mic.open();
-        micStarted = true;
-        micToggleBtn.textContent = "Stop Mic";
-        // Connect mic to current effect chain
-        switch(currentEffect) {
-          case 'No Effect':
-            mic.connect(Tone.Destination);
-            break;
-          case 'Echo':
-            mic.connect(echo);
-            break;
-          case 'Reverb':
-            mic.connect(reverb);
-            break;
-          case 'Echo + Reverb':
-            mic.connect(echo);
-            break;
-          case 'Crisp':
-            mic.connect(crisp);
-            break;
-          case 'Fade':
-            mic.connect(fade);
-            fade.pan.rampTo(1, 3);
-            setTimeout(() => fade.pan.rampTo(0, 3), 3000);
-            break;
-        }
-        statusDiv.textContent = "Mic Enabled";
-      } catch (err) {
-        console.error("Mic access error:", err);
-        alert("Microphone access denied or error.");
+      switch(effect) {
+        case 'No Effect':
+          synth.connect(Tone.Destination);
+          if(mic) mic.connect(Tone.Destination);
+          break;
+        case 'Echo':
+          synth.connect(echo);
+          if(mic) mic.connect(echo);
+          break;
+        case 'Reverb':
+          synth.connect(reverb);
+          if(mic) mic.connect(reverb);
+          break;
+        case 'Echo + Reverb':
+          synth.connect(echo);
+          echo.connect(reverb);
+          if(mic) mic.connect(echo);
+          break;
+        case 'Crisp':
+          synth.connect(crisp);
+          if(mic) mic.connect(crisp);
+          break;
+        case 'Fade':
+          synth.connect(fade);
+          if(mic) mic.connect(fade);
+          fade.pan.rampTo(1, 3);
+          setTimeout(() => fade.pan.rampTo(0, 3), 3000);
+          break;
       }
-    } else {
-      mic.close();
-      micStarted = false;
-      micToggleBtn.textContent = "Start Mic";
-      statusDiv.textContent = "Mic Disabled";
-    }
-  });
-
-  // Keyboard event listeners for notes, effects and samples
-  window.addEventListener('keydown', e => {
-    if(e.repeat) return;
-
-    const key = e.key.toLowerCase();
-
-    // Note keys
-    if (keys.includes(key)) {
-      const noteIndex = keys.indexOf(key);
-      playNote(notes[noteIndex]);
-      const btn = [...keysContainer.children][noteIndex];
-      btn.classList.add('key-active');
-      setTimeout(() => btn.classList.remove('key-active'), 150);
     }
 
-    // Effect keys
-    if (effectKeys.includes(key)) {
-      const effectIndex = effectKeys.indexOf(key);
-      selectEffect(effectNames[effectIndex]);
+    connectEffect(currentEffect);
+
+    keys.forEach((key, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = key.toUpperCase() + '\n(' + notes[i] + ')';
+      btn.dataset.note = notes[i];
+      btn.dataset.key = key;
+      keysContainer.appendChild(btn);
+
+      btn.addEventListener('mousedown', () => {
+        playNote(btn.dataset.note);
+        btn.classList.add('key-active');
+      });
+      btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+      btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+    });
+
+    effectNames.forEach((name, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = effectKeys[i].toUpperCase() + '\n' + name;
+      btn.dataset.effect = name;
+      btn.dataset.key = effectKeys[i];
+      effectsContainer.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        selectEffect(name);
+      });
+    });
+
+    sampleKeys.forEach((key, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = key;
+      btn.dataset.key = key;
+      btn.dataset.sampleIndex = i;
+      samplesContainer.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        playSample(i);
+      });
+    });
+
+    function playNote(note) {
+      synth.triggerAttackRelease(note, '8n');
     }
 
-    // Sample keys
-    if (sampleKeys.includes(key)) {
-      const sampleIndex = sampleKeys.indexOf(key);
-      playSample(sampleIndex);
-      const btn = [...samplesContainer.children][sampleIndex];
-      btn.classList.add('key-active');
-      setTimeout(() => btn.classList.remove('key-active'), 150);
+    const player = new Tone.Player().toDestination();
+    function playSample(i) {
+      player.load(sampleFiles[i]).then(() => {
+        player.start();
+      });
     }
-  });
 
-  // Clean up keys on keyup
-  window.addEventListener('keyup', e => {
-    const key = e.key.toLowerCase();
-    if (keys.includes(key)) {
-      const btn = [...keysContainer.children][keys.indexOf(key)];
-      btn.classList.remove('key-active');
+    function selectEffect(name) {
+      currentEffect = name;
+      connectEffect(name);
+      updateEffectButtons();
+      statusDiv.textContent = "Effect: " + name;
     }
-    if (sampleKeys.includes(key)) {
-      const btn = [...samplesContainer.children][sampleKeys.indexOf(key)];
-      btn.classList.remove('key-active');
-    }
-  });
 
-})();
+    function updateEffectButtons() {
+      Array.from(effectsContainer.children).forEach(btn => {
+        btn.classList.toggle('effect-active', btn.dataset.effect === currentEffect);
+      });
+    }
+
+    updateEffectButtons();
+
+    let mic, micStarted = false;
+    micToggleBtn.addEventListener('click', async () => {
+      if (!micStarted) {
+        try {
+          mic = new Tone.UserMedia();
+          await mic.open();
+          micStarted = true;
+          micToggleBtn.textContent = "Stop Mic";
+          // Connect mic to current effect chain
+          switch(currentEffect) {
+            case 'No Effect':
+              mic.connect(Tone.Destination);
+              break;
+            case 'Echo':
+              mic.connect(echo);
+              break;
+            case 'Reverb':
+              mic.connect(reverb);
+              break;
+            case 'Echo + Reverb':
+              mic.connect(echo);
+              break;
+            case 'Crisp':
+              mic.connect(crisp);
+              break;
+            case 'Fade':
+              mic.connect(fade);
+              fade.pan.rampTo(1, 3);
+              setTimeout(() => fade.pan.rampTo(0, 3), 3000);
+              break;
+          }
+          statusDiv.textContent = "Mic Enabled";
+        } catch (err) {
+          console.error("Mic access error:", err);
+          alert("Microphone access denied or error.");
+        }
+      } else {
+        mic.close();
+        micStarted = false;
+        micToggleBtn.textContent = "Start Mic";
+        statusDiv.textContent = "Mic Disabled";
+      }
+    });
+
+    window.addEventListener('keydown', e => {
+      if(e.repeat) return;
+
+      const key = e.key.toLowerCase();
+
+      if (keys.includes(key)) {
+        const noteIndex = keys.indexOf(key);
+        playNote(notes[noteIndex]);
+        const btn = [...keysContainer.children][noteIndex];
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 150);
+      }
+
+      if (effectKeys.includes(key)) {
+        const effectIndex = effectKeys.indexOf(key);
+        selectEffect(effectNames[effectIndex]);
+      }
+
+      if (sampleKeys.includes(key)) {
+        const sampleIndex = sampleKeys.indexOf(key);
+        playSample(sampleIndex);
+        const btn = [...samplesContainer.children][sampleIndex];
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 150);
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      const key = e.key.toLowerCase();
+      if (keys.includes(key)) {
+        const btn = [...keysContainer.children][keys.indexOf(key)];
+        btn.classList.remove('key-active');
+      }
+      if (sampleKeys.includes(key)) {
+        const btn = [...samplesContainer.children][sampleKeys.indexOf(key)];
+        btn.classList.remove('key-active');
+      }
+    });
+
+  }
+
+  setup();
+
 </script>
 
 </body>
