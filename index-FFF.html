@@ -1,0 +1,110 @@
+// Mic recording variables
+let micStream, mediaRecorder, chunks = [], isRecording = false;
+let recordedAudioURL = null;
+let audioElement = null;
+let isAudioMuted = false;
+
+async function startMicRecording() {
+  if (!micStream) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      alert('Microphone access denied or unavailable.');
+      return;
+    }
+  }
+  mediaRecorder = new MediaRecorder(micStream);
+  chunks = [];
+
+  mediaRecorder.ondataavailable = (e) => {
+    chunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    if (recordedAudioURL) {
+      URL.revokeObjectURL(recordedAudioURL); // free old url
+    }
+    const blob = new Blob(chunks, { type: 'audio/wav' });
+    recordedAudioURL = URL.createObjectURL(blob);
+
+    // Create or update audio element for playback
+    if (!audioElement) {
+      audioElement = document.createElement('audio');
+      audioElement.controls = true;
+      audioElement.style.display = 'block';
+      audioElement.style.marginTop = '10px';
+      micControlsContainer.appendChild(audioElement);
+    }
+    audioElement.src = recordedAudioURL;
+    audioElement.muted = isAudioMuted;
+
+    // Create download button if doesn't exist
+    if (!downloadBtn) {
+      downloadBtn = document.createElement('button');
+      downloadBtn.textContent = 'Download Recording';
+      downloadBtn.style.marginLeft = '10px';
+      micControlsContainer.appendChild(downloadBtn);
+      downloadBtn.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = recordedAudioURL;
+        a.download = `mic-recording-${Date.now()}.wav`;
+        a.click();
+      });
+    }
+
+    // Create mute toggle button if doesn't exist
+    if (!muteBtn) {
+      muteBtn = document.createElement('button');
+      muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
+      muteBtn.style.marginLeft = '10px';
+      micControlsContainer.appendChild(muteBtn);
+      muteBtn.addEventListener('click', () => {
+        isAudioMuted = !isAudioMuted;
+        audioElement.muted = isAudioMuted;
+        muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
+      });
+    }
+
+    console.log('Recording stopped and ready for playback/download.');
+  };
+
+  mediaRecorder.start();
+  isRecording = true;
+  recordMicBtn.textContent = 'Stop Mic Recording';
+  recordMicBtn.classList.add('recording');
+
+  // Clear previous playback & download UI
+  if (audioElement) {
+    audioElement.src = '';
+  }
+  if (downloadBtn) {
+    downloadBtn.remove();
+    downloadBtn = null;
+  }
+  if (muteBtn) {
+    muteBtn.remove();
+    muteBtn = null;
+  }
+}
+
+// Stop recording function
+function stopMicRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  recordMicBtn.textContent = 'Start Mic Recording';
+  recordMicBtn.classList.remove('recording');
+}
+
+recordMicBtn.addEventListener('click', async () => {
+  if (!synth) {
+    await Tone.start();
+    setupSynth();
+  }
+  if (!isRecording) {
+    startMicRecording();
+  } else {
+    stopMicRecording();
+  }
+});
