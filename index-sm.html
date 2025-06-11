@@ -45,11 +45,13 @@
   }
 
   startBtn.addEventListener('click', async () => {
-    await Tone.start();
-    synth = new Tone.Synth().toDestination();
-    startBtn.disabled = true;
-    console.log('Audio started');
-  });
+  await Tone.start();
+  synth = new Tone.Synth().toDestination();
+  startBtn.disabled = true;      // disable button
+  startBtn.style.display = 'none'; // hide the button completely (optional)
+  console.log('Audio started');
+});
+
 
   // Keyboard key press
   window.addEventListener('keydown', e => {
