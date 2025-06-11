@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - F Major</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #222; color: #eee; padding: 20px; }
+  button { margin: 5px; padding: 12px 16px; font-size: 18px; border-radius: 5px; border: none; background: #444; color: #eee; cursor: pointer; }
+  button.key-active { background: #4caf50; }
+  #effects button.active { background: #2196F3; }
+  #modeToggle button.active { background: #ff9800; }
+  #keysContainer button { width: 70px; height: 70px; display: inline-flex; flex-direction: column; justify-content: center; align-items: center; }
+  #keysContainer span { font-size: 12px; color: #aaa; }
+</style>
+</head>
+<body>
+
+<h2>Web Music Recorder - F Major Scale</h2>
+
+<button id="startBtn" type="button">Start Audio</button>
+
+<div id="modeToggle" style="margin-top: 20px;">
+  <strong>Mode: </strong>
+  <button type="button" id="modeSynth" class="active">Synth</button>
+  <button type="button" id="modeSample">Melodion Sample</button>
+</div>
+
+<div id="effects" style="margin-top: 20px;">
+  <strong>Effects: </strong>
+  <button type="button" data-effect="none" class="active">No Effect</button>
+  <button type="button" data-effect="echo">Echo</button>
+  <button type="button" data-effect="reverb">Reverb</button>
+</div>
+
+<div style="margin-top: 30px; font-size: 18px;"><strong>Play Notes (Keyboard or Click Buttons):</strong></div>
+<div id="keysContainer" style="margin-top: 10px;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const keys = [';','\'','a','s','d','f','g','h','j','k','l'];
+  const notes = ['F3','G3','A3','Bb3','C4','D4','E4','F4','G4','A4','Bb4'];
+  const keysContainer = document.getElementById('keysContainer');
+  const startBtn = document.getElementById('startBtn');
+  const effectsDiv = document.getElementById('effects');
+  const modeSynthBtn = document.getElementById('modeSynth');
+  const modeSampleBtn = document.getElementById('modeSample');
+
+  let synth;
+  let currentEffect = null;
+  let effectTimeout = null;
+  let currentEffectName = 'none';
+  let mode = 'synth';
+
+  const samplePlayers = {};
+  notes.forEach(note => {
+    samplePlayers[note] = new Tone.Player(`samples/${note.replace('#','sharp').replace('b','flat')}.mp3`).toDestination();
+  });
+
+  // Create buttons with note labels
+  keys.forEach((key, i) => {
+    const btn = document.createElement('button');
+    btn.innerHTML = `<div>${key.toUpperCase()}</div><span>${notes[i]}</span>`;
+    btn.dataset.note = notes[i];
+    btn.dataset.key = key;
+    keysContainer.appendChild(btn);
+
+    btn.addEventListener('mousedown', () => {
+      playNote(btn.dataset.note);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+  });
+
+  function applyEffect(effectName) {
+    if (!synth) return;
+    if (effectTimeout) clearTimeout(effectTimeout);
+    if (currentEffect) {
+      currentEffect.dispose();
+      currentEffect = null;
+    }
+    synth.disconnect();
+
+    if (effectName === 'none') {
+      synth.connect(Tone.Destination);
+      currentEffectName = 'none';
+      updateEffectButtons();
+      return;
+    }
+
+    switch(effectName) {
+      case 'echo': currentEffect = new Tone.FeedbackDelay("8n", 0.5).toDestination(); break;
+      case 'reverb': currentEffect = new Tone.Reverb({ decay: 2, wet: 0.5 }).toDestination(); break;
+    }
+    synth.connect(currentEffect);
+    currentEffectName = effectName;
+    updateEffectButtons();
+
+    effectTimeout = setTimeout(() => {
+      synth.disconnect();
+      if (currentEffect) currentEffect.dispose();
+      synth.connect(Tone.Destination);
+      currentEffectName = 'none';
+      updateEffectButtons();
+    }, 3000);
+  }
+
+  function updateEffectButtons() {
+    effectsDiv.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.effect === currentEffectName);
+    });
+  }
+
+  function playNote(note) {
+    if (mode === 'synth') {
+      if (synth) synth.triggerAttackRelease(note, '8n');
+    } else if (mode === 'sample') {
+      const player = samplePlayers[note];
+      if (player && player.loaded) player.start();
+    }
+  }
+
+  modeSynthBtn.addEventListener('click', () => {
+    mode = 'synth';
+    modeSynthBtn.classList.add('active');
+    modeSampleBtn.classList.remove('active');
+  });
+  modeSampleBtn.addEventListener('click', () => {
+    mode = 'sample';
+    modeSampleBtn.classList.add('active');
+    modeSynthBtn.classList.remove('active');
+  });
+
+  effectsDiv.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => applyEffect(btn.dataset.effect));
+  });
+
+  startBtn.addEventListener('click', async () => {
+    await Tone.start();
+    synth = new Tone.Synth().toDestination();
+    startBtn.disabled = true;
+    startBtn.style.display = 'none';
+  });
+
+  window.addEventListener('keydown', e => {
+    if (!synth && mode === 'synth') return;
+    const key = e.key;
+    if (!keys.includes(key)) return;
+    const btn = [...keysContainer.children].find(b => b.dataset.key === key);
+    if (btn) {
+      btn.classList.add('key-active');
+      playNote(btn.dataset.note);
+      setTimeout(() => btn.classList.remove('key-active'), 100);
+    }
+  });
+});
+</script>
+
+</body>
+</html>
