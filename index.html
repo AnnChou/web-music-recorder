@@ -1,259 +1,285 @@
-<button id="start-btn">Start Audio</button>
-
-<script>
-  const startBtn = document.getElementById('start-btn');
-  startBtn.addEventListener('click', async () => {
-    await Tone.start();
-    console.log('Audio context started');
-    startBtn.style.display = 'none';  // hide button after start
-  });
-</script>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Web Music Player & Recorder - G Major Scale</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web Music Recorder - G Major</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 20px auto;
-      padding: 10px;
-      background: #f9f9f9;
-      color: #333;
-    }
-    h1 {
+      padding: 20px;
+      background: #222;
+      color: #eee;
       text-align: center;
     }
-    #keyboard {
-      display: flex;
-      justify-content: center;
+    button {
+      font-size: 1.2rem;
+      padding: 10px 20px;
+      margin: 10px;
+      cursor: pointer;
+    }
+    #waveform {
+      width: 100%;
+      height: 100px;
       margin: 20px 0;
-      gap: 8px;
+      background: #333;
+      border-radius: 5px;
     }
     .key {
+      display: inline-block;
       width: 40px;
-      height: 120px;
-      background: white;
-      border: 2px solid #444;
-      border-radius: 6px;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: center;
-      cursor: pointer;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+      height: 100px;
+      margin: 3px;
+      background: #555;
+      border-radius: 5px;
+      line-height: 100px;
+      font-weight: bold;
       user-select: none;
-      transition: background-color 0.2s;
-    }
-    .key:active, .key.playing {
-      background-color: #a5d6ff;
-      border-color: #2196f3;
-      box-shadow: 0 0 15px #2196f3;
-    }
-    .label-key {
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-    .label-note {
-      font-size: 14px;
-      color: #555;
-      margin-bottom: 8px;
-    }
-    #recordings {
-      margin-top: 40px;
-    }
-    .recording-slot {
-      background: white;
-      padding: 10px;
-      margin-bottom: 15px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-    .recording-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    button {
       cursor: pointer;
-      border: none;
-      padding: 6px 12px;
-      background: #2196f3;
       color: white;
-      font-weight: bold;
-      border-radius: 4px;
-      transition: background-color 0.3s;
+      transition: background 0.2s ease;
     }
-    button:hover {
-      background: #1976d2;
-    }
-    a.download-link {
-      color: #2196f3;
-      text-decoration: none;
-      font-weight: bold;
-      margin-left: auto;
-    }
-    a.download-link:hover {
-      text-decoration: underline;
-    }
-    #instructions {
-      max-width: 700px;
-      margin: 0 auto 20px;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #444;
+    .key.active {
+      background: #0a84ff;
+      box-shadow: 0 0 10px #0a84ff;
     }
   </style>
 </head>
 <body>
 
-<h1>🎶 Web Music Recorder & Player - G Major Scale</h1>
+  <h1>Web Music Recorder - G Major Scale</h1>
+  <button id="start-btn">Start Audio</button>
+  <div id="instructions">
+    <p>Play notes with keys: A S D F G H J K L</p>
+    <p>Record up to 10 audio loops by pressing Record then number keys 1-10 to play</p>
+  </div>
 
-<div id="instructions">
-  <p><strong>Play notes:</strong> Use your keyboard keys <code>A</code> to <code>L</code> to play G major scale notes.</p>
-  <p><strong>Record/play:</strong> Press number keys <code>1</code> to <code>9</code> and <code>0</code> (for slot 10) to start/stop recording.</p>
-  <p>Use the buttons below to play or download your recordings.</p>
-</div>
+  <div id="keys">
+    <div class="key" data-note="G4">A</div>
+    <div class="key" data-note="A4">S</div>
+    <div class="key" data-note="B4">D</div>
+    <div class="key" data-note="C5">F</div>
+    <div class="key" data-note="D5">G</div>
+    <div class="key" data-note="E5">H</div>
+    <div class="key" data-note="F#5">J</div>
+    <div class="key" data-note="G5">K</div>
+    <div class="key" data-note="A5">L</div>
+  </div>
 
-<div id="keyboard"></div>
+  <div style="margin-top: 20px;">
+    <button id="record-btn">Record</button>
+    <button id="stop-btn" disabled>Stop</button>
+  </div>
 
-<div id="recordings"></div>
+  <canvas id="waveform"></canvas>
 
-<script src="https://unpkg.com/tone/build/Tone.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/mattdiamond/Recorderjs@master/dist/recorder.js"></script>
-<script src="https://unpkg.com/wavesurfer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+  <script>
+    const startBtn = document.getElementById('start-btn');
+    const recordBtn = document.getElementById('record-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const keysContainer = document.getElementById('keys');
+    const waveform = document.getElementById('waveform');
+    const ctx = waveform.getContext('2d');
 
-<script>
-
-  // Tone.js synth + effects setup
-  const synth = new Tone.Synth().toDestination();
-  const delay = new Tone.FeedbackDelay("8n", 0.4).toDestination();
-  const reverb = new Tone.Reverb({ decay: 4, wet: 0.3 }).toDestination();
-  synth.connect(delay);
-  synth.connect(reverb);
-
-  const audioContext = Tone.context;
-  const destination = audioContext.createMediaStreamDestination();
-  const recorder = new Recorder(destination);
-  synth.connect(destination);
-  delay.connect(destination);
-  reverb.connect(destination);
-
-  // Map keys A-L to G major scale notes
-  const keyNoteMap = {
-    'a': 'G4',
-    's': 'A4',
-    'd': 'B4',
-    'f': 'C5',
-    'g': 'D5',
-    'h': 'E5',
-    'j': 'F#5',
-    'k': 'G5',
-    'l': 'A5'
-  };
-
-  // Show keyboard keys visually
-  const keyboardDiv = document.getElementById('keyboard');
-  for (const [key, note] of Object.entries(keyNoteMap)) {
-    const keyDiv = document.createElement('div');
-    keyDiv.className = 'key';
-    keyDiv.id = `key-${key}`;
-    keyDiv.innerHTML = `<div class="label-key">${key.toUpperCase()}</div><div class="label-note">${note}</div>`;
-    keyboardDiv.appendChild(keyDiv);
-
-    // Also allow clicking on onscreen keys to play notes
-    keyDiv.addEventListener('mousedown', async () => {
-      await Tone.start();
-      synth.triggerAttackRelease(note, "8n");
-      keyDiv.classList.add('playing');
-      setTimeout(() => keyDiv.classList.remove('playing'), 150);
-    });
-  }
-
-  // Recording slots and wavesurfers
-  const recordings = {};
-  const wavesurfers = {};
-
-  function createWaveform(blob, slot) {
-    const url = URL.createObjectURL(blob);
-    let container = document.getElementById(`recording-container-${slot}`);
-
-    if (!container) {
-      container = document.createElement('div');
-      container.id = `recording-container-${slot}`;
-      container.className = 'recording-slot';
-      document.getElementById('recordings').appendChild(container);
-    }
-
-    container.innerHTML = `
-      <div class="recording-header">
-        <strong>Recording Slot ${slot}</strong>
-        <button id="play-btn-${slot}">▶️ Play</button>
-        <a class="download-link" href="${url}" download="recording-${slot}.wav">💾 Download</a>
-      </div>
-      <div id="wave-${slot}"></div>
-    `;
-
-    if (wavesurfers[slot]) {
-      wavesurfers[slot].destroy();
-    }
-
-    wavesurfers[slot] = WaveSurfer.create({
-      container: `#wave-${slot}`,
-      waveColor: 'violet',
-      progressColor: 'purple',
-      height: 80,
-      interact: true,
-      normalize: true
-    });
-    wavesurfers[slot].load(url);
-
-    // Play button toggles play/pause
-    document.getElementById(`play-btn-${slot}`).onclick = () => {
-      wavesurfers[slot].playPause();
+    // Map keyboard letters to notes (G Major scale)
+    const keyNoteMap = {
+      'a': 'G4',
+      's': 'A4',
+      'd': 'B4',
+      'f': 'C5',
+      'g': 'D5',
+      'h': 'E5',
+      'j': 'F#5',
+      'k': 'G5',
+      'l': 'A5',
     };
-  }
 
-  // Map '0' key to slot 10
-  function keyToSlot(key) {
-    if (key === '0') return '10';
-    if ('123456789'.includes(key)) return key;
-    return null;
-  }
+    // Storage for 10 recordings
+    const MAX_RECORDINGS = 10;
+    const recordings = new Array(MAX_RECORDINGS).fill(null);
 
-  document.addEventListener('keydown', async (e) => {
-    // Play notes on A-L keys
-    if (keyNoteMap[e.key]) {
+    // Tone.js setup
+    let synth, delay, feedbackDelay;
+    let recorder;
+    let recordingChunks = [];
+    let isRecording = false;
+    let currentRecordIndex = null;
+
+    // Audio context and media recorder for WAV
+    let mediaRecorder;
+    let recordedBlobs = [];
+
+    // Waveform drawing setup
+    let analyser;
+    let dataArray;
+    let animationId;
+
+    // Start Audio context on user interaction
+    startBtn.addEventListener('click', async () => {
       await Tone.start();
-      synth.triggerAttackRelease(keyNoteMap[e.key], "8n");
-      const keyDiv = document.getElementById(`key-${e.key}`);
-      if (keyDiv) {
-        keyDiv.classList.add('playing');
-        setTimeout(() => keyDiv.classList.remove('playing'), 150);
+      console.log('Audio started');
+
+      // Initialize synth and effects
+      delay = new Tone.FeedbackDelay("8n", 0.5).toDestination();
+      synth = new Tone.Synth().connect(delay);
+
+      // Setup analyser for waveform
+      analyser = new Tone.Analyser("waveform", 256);
+      synth.connect(analyser);
+
+      // Setup MediaStream destination for recording
+      const dest = Tone.context.createMediaStreamDestination();
+      synth.connect(dest);
+
+      // Setup MediaRecorder to capture audio stream from Tone.js
+      mediaRecorder = new MediaRecorder(dest.stream);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedBlobs.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedBlobs, {type: 'audio/wav'});
+        recordings[currentRecordIndex] = blob;
+        recordedBlobs = [];
+        currentRecordIndex = null;
+        console.log('Recording saved');
+        stopBtn.disabled = true;
+        recordBtn.disabled = false;
+      };
+
+      // Start waveform animation
+      drawWaveform();
+
+      // Hide start button and enable controls
+      startBtn.style.display = 'none';
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+    });
+
+    // Draw waveform on canvas
+    function drawWaveform() {
+      animationId = requestAnimationFrame(drawWaveform);
+      const buffer = analyser.getValue();
+      ctx.clearRect(0, 0, waveform.width, waveform.height);
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#0a84ff';
+      ctx.lineWidth = 2;
+
+      const sliceWidth = waveform.width / buffer.length;
+      let x = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        const y = (buffer[i] * 0.5 + 0.5) * waveform.height;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        x += sliceWidth;
       }
+      ctx.stroke();
     }
 
-    // Handle recording slots (1-9,0)
-    const slot = keyToSlot(e.key);
-    if (slot) {
-      if (recorder.recording) {
-        recorder.stop();
-        recorder.exportWAV(blob => {
-          recordings[slot] = blob;
-          createWaveform(blob, slot);
-          console.log(`Stopped recording slot ${slot}`);
-        });
-      } else {
-        recorder.clear();
-        recorder.record();
-        console.log(`Started recording slot ${slot}`);
-      }
+    // Play note by note string
+    function playNote(note) {
+      synth.triggerAttackRelease(note, "8n");
     }
-  });
-</script>
+
+    // Keyboard event: play notes or play recordings by number keys
+    window.addEventListener('keydown', (e) => {
+      if (!synth) return; // not started yet
+
+      const key = e.key.toLowerCase();
+
+      if (keyNoteMap[key]) {
+        // Visual effect on the key
+        const keyDiv = [...keysContainer.children].find(k => k.textContent.toLowerCase() === key);
+        if (keyDiv) {
+          keyDiv.classList.add('active');
+          setTimeout(() => keyDiv.classList.remove('active'), 150);
+        }
+
+        playNote(keyNoteMap[key]);
+      } else if (!isRecording && /^[1-9]$/.test(key)) {
+        const index = parseInt(key) - 1;
+        if (recordings[index]) {
+          playRecording(index);
+        } else {
+          console.log('No recording for slot', index + 1);
+        }
+      } else if (!isRecording && key === '0') {
+        const index = 9;
+        if (recordings[index]) {
+          playRecording(index);
+        } else {
+          console.log('No recording for slot 10');
+        }
+      }
+    });
+
+    // Stop visual key highlight on keyup
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      const keyDiv = [...keysContainer.children].find(k => k.textContent.toLowerCase() === key);
+      if (keyDiv) {
+        keyDiv.classList.remove('active');
+      }
+    });
+
+    // Play recorded audio blob
+    function playRecording(index) {
+      const blob = recordings[index];
+      if (!blob) return;
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+
+    // Recording controls
+    recordBtn.addEventListener('click', () => {
+      if (!mediaRecorder || mediaRecorder.state === 'recording') return;
+
+      // Ask user which slot to record
+      let slot = prompt(`Enter recording slot number (1-${MAX_RECORDINGS}):`);
+      slot = parseInt(slot);
+      if (!slot || slot < 1 || slot > MAX_RECORDINGS) {
+        alert('Invalid slot number');
+        return;
+      }
+      currentRecordIndex = slot - 1;
+
+      recordedBlobs = [];
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.disabled = true;
+      stopBtn.disabled = false;
+      console.log('Recording started for slot', slot);
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+      mediaRecorder.stop();
+      isRecording = false;
+      console.log('Recording stopped');
+    });
+
+    // Resize canvas to fit container
+    function resizeCanvas() {
+      waveform.width = waveform.clientWidth * devicePixelRatio;
+      waveform.height = waveform.clientHeight * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+  </script>
 
 </body>
 </html>
