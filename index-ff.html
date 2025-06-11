@@ -48,25 +48,41 @@
 
 <h2>Web Music Recorder - Synth, Samples & Mic</h2>
 
-<p><strong>Play Notes (Keyboard or Click Buttons):</strong></p>
-<div id="keysContainer"></div>
+<button id="startAudioBtn">Start Audio</button>
 
-<p><strong>Toggle Effects (Z, X, C, V, B, N keys or click buttons):</strong></p>
-<div id="effectsContainer"></div>
+<div id="app" style="display:none;">
+  <p><strong>Play Notes (Keyboard or Click Buttons):</strong></p>
+  <div id="keysContainer"></div>
 
-<p><strong>Play Melodion Samples (1-0 keys or click buttons):</strong></p>
-<div id="samplesContainer"></div>
+  <p><strong>Toggle Effects (Z, X, C, V, B, N keys or click buttons):</strong></p>
+  <div id="effectsContainer"></div>
 
-<button id="micToggleBtn">Start Mic</button>
+  <p><strong>Play Melodion Samples (1-0 keys or click buttons):</strong></p>
+  <div id="samplesContainer"></div>
 
-<div id="status"></div>
+  <button id="micToggleBtn">Start Mic</button>
+
+  <div id="status"></div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
 <script>
-  // Wrap all logic in an async function to use await
-  async function setup() {
-    await Tone.start();
+  const startAudioBtn = document.getElementById('startAudioBtn');
+  const app = document.getElementById('app');
 
+  startAudioBtn.addEventListener('click', async () => {
+    try {
+      await Tone.start();
+      console.log('Audio started');
+      startAudioBtn.style.display = 'none';
+      app.style.display = 'block';
+      setupApp();
+    } catch(e) {
+      alert('Could not start audio: ' + e);
+    }
+  });
+
+  function setupApp() {
     const keys = ['f','g','h','j','k','l',';','\''];
     const notes = ['C4','D4','E4','F4','G4','A4','B4','C5'];
 
@@ -89,15 +105,16 @@
 
     const echo = new Tone.FeedbackDelay("8n", 0.5).toDestination();
     const reverb = new Tone.Reverb({decay: 3, wet: 0.3}).toDestination();
-    await reverb.generate();
+    reverb.generate();
     const crisp = new Tone.Distortion(0.4).toDestination();
     const fade = new Tone.Panner(0).toDestination();
 
     let currentEffect = 'No Effect';
+    let mic, micStarted = false;
 
     function connectEffect(effect) {
       synth.disconnect();
-      if(mic) mic.disconnect();
+      if (mic) mic.disconnect();
 
       switch(effect) {
         case 'No Effect':
@@ -130,8 +147,32 @@
       }
     }
 
-    connectEffect(currentEffect);
+    function updateEffectButtons() {
+      Array.from(effectsContainer.children).forEach(btn => {
+        btn.classList.toggle('effect-active', btn.dataset.effect === currentEffect);
+      });
+    }
 
+    function playNote(note) {
+      synth.triggerAttackRelease(note, '8n');
+    }
+
+    const player = new Tone.Player().toDestination();
+
+    function playSample(i) {
+      player.load(sampleFiles[i]).then(() => {
+        player.start();
+      });
+    }
+
+    function selectEffect(name) {
+      currentEffect = name;
+      connectEffect(name);
+      updateEffectButtons();
+      statusDiv.textContent = "Effect: " + name;
+    }
+
+    // Create UI buttons
     keys.forEach((key, i) => {
       const btn = document.createElement('button');
       btn.textContent = key.toUpperCase() + '\n(' + notes[i] + ')';
@@ -154,9 +195,7 @@
       btn.dataset.key = effectKeys[i];
       effectsContainer.appendChild(btn);
 
-      btn.addEventListener('click', () => {
-        selectEffect(name);
-      });
+      btn.addEventListener('click', () => selectEffect(name));
     });
 
     sampleKeys.forEach((key, i) => {
@@ -166,38 +205,11 @@
       btn.dataset.sampleIndex = i;
       samplesContainer.appendChild(btn);
 
-      btn.addEventListener('click', () => {
-        playSample(i);
-      });
+      btn.addEventListener('click', () => playSample(i));
     });
-
-    function playNote(note) {
-      synth.triggerAttackRelease(note, '8n');
-    }
-
-    const player = new Tone.Player().toDestination();
-    function playSample(i) {
-      player.load(sampleFiles[i]).then(() => {
-        player.start();
-      });
-    }
-
-    function selectEffect(name) {
-      currentEffect = name;
-      connectEffect(name);
-      updateEffectButtons();
-      statusDiv.textContent = "Effect: " + name;
-    }
-
-    function updateEffectButtons() {
-      Array.from(effectsContainer.children).forEach(btn => {
-        btn.classList.toggle('effect-active', btn.dataset.effect === currentEffect);
-      });
-    }
 
     updateEffectButtons();
 
-    let mic, micStarted = false;
     micToggleBtn.addEventListener('click', async () => {
       if (!micStarted) {
         try {
@@ -205,23 +217,14 @@
           await mic.open();
           micStarted = true;
           micToggleBtn.textContent = "Stop Mic";
+
           // Connect mic to current effect chain
           switch(currentEffect) {
-            case 'No Effect':
-              mic.connect(Tone.Destination);
-              break;
-            case 'Echo':
-              mic.connect(echo);
-              break;
-            case 'Reverb':
-              mic.connect(reverb);
-              break;
-            case 'Echo + Reverb':
-              mic.connect(echo);
-              break;
-            case 'Crisp':
-              mic.connect(crisp);
-              break;
+            case 'No Effect': mic.connect(Tone.Destination); break;
+            case 'Echo': mic.connect(echo); break;
+            case 'Reverb': mic.connect(reverb); break;
+            case 'Echo + Reverb': mic.connect(echo); break;
+            case 'Crisp': mic.connect(crisp); break;
             case 'Fade':
               mic.connect(fade);
               fade.pan.rampTo(1, 3);
@@ -230,8 +233,8 @@
           }
           statusDiv.textContent = "Mic Enabled";
         } catch (err) {
-          console.error("Mic access error:", err);
           alert("Microphone access denied or error.");
+          console.error(err);
         }
       } else {
         mic.close();
@@ -242,8 +245,7 @@
     });
 
     window.addEventListener('keydown', e => {
-      if(e.repeat) return;
-
+      if (e.repeat) return;
       const key = e.key.toLowerCase();
 
       if (keys.includes(key)) {
@@ -280,10 +282,8 @@
       }
     });
 
+    selectEffect('No Effect');
   }
-
-  setup();
-
 </script>
 
 </body>
