@@ -1,110 +1,132 @@
-// Mic recording variables
-let micStream, mediaRecorder, chunks = [], isRecording = false;
-let recordedAudioURL = null;
-let audioElement = null;
-let isAudioMuted = false;
-
-async function startMicRecording() {
-  if (!micStream) {
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      alert('Microphone access denied or unavailable.');
-      return;
-    }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - Synth & Mic Mode</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #222; color: #eee; padding: 20px; }
+  h2, h3 { margin-top: 20px; }
+  button {
+    margin: 5px; padding: 12px 16px; font-size: 18px;
+    border-radius: 5px; border: none;
+    background: #444; color: #eee; cursor: pointer;
+    user-select: none;
   }
-  mediaRecorder = new MediaRecorder(micStream);
-  chunks = [];
+  button.key-active { background: #4caf50; }
+  button.effect-active { background: #2196f3; }
+  #keysContainer, #effectsContainer, #melodionContainer {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #micControlsContainer {
+    margin-top: 15px;
+  }
+  audio {
+    width: 300px;
+    outline: none;
+  }
+  .recording {
+    background: #e53935 !important;
+  }
+</style>
+</head>
+<body>
 
-  mediaRecorder.ondataavailable = (e) => {
-    chunks.push(e.data);
+<h2>Web Music Recorder - Synth & Mic Mode</h2>
+
+<!-- Effects Buttons -->
+<h3>Effects (Toggle with buttons or keys Z X C V B N)</h3>
+<div id="effectsContainer"></div>
+
+<!-- Keyboard Buttons -->
+<h3>Play Notes (Keyboard or Click Buttons)</h3>
+<div id="keysContainer"></div>
+
+<!-- Melodion Sample Buttons -->
+<h3>Melodion Samples (Press 1-10 or click buttons)</h3>
+<div id="melodionContainer"></div>
+
+<!-- Mic Recording -->
+<h3>Microphone Recording</h3>
+<button id="recordMicBtn">Start Mic Recording</button>
+<div id="micControlsContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+(async () => {
+  await Tone.start();
+
+  // --- Setup synth and effects ---
+  let synth = new Tone.Synth().toDestination();
+
+  // Effects
+  const effects = {
+    none: null,
+    crisp: new Tone.Distortion(0.4).toDestination(),
+    echo: new Tone.FeedbackDelay("8n", 0.5).toDestination(),
+    reverb: new Tone.Reverb({ decay: 3, wet: 0.5 }).toDestination()
   };
 
-  mediaRecorder.onstop = () => {
-    if (recordedAudioURL) {
-      URL.revokeObjectURL(recordedAudioURL); // free old url
+  // Chain synth to effects, default none (dry)
+  let currentEffect = 'none';
+  function updateEffectChain() {
+    if (effects[currentEffect]) {
+      synth.disconnect();
+      synth.connect(effects[currentEffect]);
+    } else {
+      synth.disconnect();
+      synth.toDestination();
     }
-    const blob = new Blob(chunks, { type: 'audio/wav' });
-    recordedAudioURL = URL.createObjectURL(blob);
+  }
+  updateEffectChain();
 
-    // Create or update audio element for playback
-    if (!audioElement) {
-      audioElement = document.createElement('audio');
-      audioElement.controls = true;
-      audioElement.style.display = 'block';
-      audioElement.style.marginTop = '10px';
-      micControlsContainer.appendChild(audioElement);
-    }
-    audioElement.src = recordedAudioURL;
-    audioElement.muted = isAudioMuted;
-
-    // Create download button if doesn't exist
-    if (!downloadBtn) {
-      downloadBtn = document.createElement('button');
-      downloadBtn.textContent = 'Download Recording';
-      downloadBtn.style.marginLeft = '10px';
-      micControlsContainer.appendChild(downloadBtn);
-      downloadBtn.addEventListener('click', () => {
-        const a = document.createElement('a');
-        a.href = recordedAudioURL;
-        a.download = `mic-recording-${Date.now()}.wav`;
-        a.click();
-      });
-    }
-
-    // Create mute toggle button if doesn't exist
-    if (!muteBtn) {
-      muteBtn = document.createElement('button');
-      muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
-      muteBtn.style.marginLeft = '10px';
-      micControlsContainer.appendChild(muteBtn);
-      muteBtn.addEventListener('click', () => {
-        isAudioMuted = !isAudioMuted;
-        audioElement.muted = isAudioMuted;
-        muteBtn.textContent = isAudioMuted ? 'Unmute Playback' : 'Mute Playback';
-      });
-    }
-
-    console.log('Recording stopped and ready for playback/download.');
+  // --- Key to note mapping (F major scale starting at F4) ---
+  const keyNoteMap = {
+    // Keyboard row: F G H J K L ; '
+    'f': 'F4', 'g': 'G4', 'h': 'A4', 'j': 'Bb4', 'k': 'C5', 'l': 'D5', ';': 'E5', '\'': 'F5',
+    // Bottom row for chords/effects (optional)
+    'a': 'D4', 's': 'E4', 'd': 'F4',
   };
 
-  mediaRecorder.start();
-  isRecording = true;
-  recordMicBtn.textContent = 'Stop Mic Recording';
-  recordMicBtn.classList.add('recording');
+  // Create UI buttons for play keys
+  const keysContainer = document.getElementById('keysContainer');
+  for (const [key, note] of Object.entries(keyNoteMap)) {
+    const btn = document.createElement('button');
+    btn.textContent = `${key.toUpperCase()} (${note})`;
+    btn.dataset.key = key;
+    btn.dataset.note = note;
+    btn.addEventListener('mousedown', () => {
+      playNote(note);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+    keysContainer.appendChild(btn);
+  }
 
-  // Clear previous playback & download UI
-  if (audioElement) {
-    audioElement.src = '';
-  }
-  if (downloadBtn) {
-    downloadBtn.remove();
-    downloadBtn = null;
-  }
-  if (muteBtn) {
-    muteBtn.remove();
-    muteBtn = null;
-  }
-}
+  // --- Effects UI & key mapping ---
+  const effectsKeys = ['z', 'x', 'c', 'v', 'b', 'n'];
+  const effectsNames = ['none', 'crisp', 'echo', 'reverb'];
+  // Map first four keys to effects
+  const effectKeyMap = {
+    'z': 'none',
+    'x': 'crisp',
+    'c': 'echo',
+    'v': 'reverb',
+    // b and n unused here, could extend later
+  };
 
-// Stop recording function
-function stopMicRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  isRecording = false;
-  recordMicBtn.textContent = 'Start Mic Recording';
-  recordMicBtn.classList.remove('recording');
-}
-
-recordMicBtn.addEventListener('click', async () => {
-  if (!synth) {
-    await Tone.start();
-    setupSynth();
-  }
-  if (!isRecording) {
-    startMicRecording();
-  } else {
-    stopMicRecording();
-  }
-});
+  const effectsContainer = document.getElementById('effectsContainer');
+  // Create effect buttons UI
+  for (const [key, effectName] of Object.entries(effectKeyMap)) {
+    const btn = document.createElement('button');
+    btn.textContent = `${key.toUpperCase()} (${effectName})`;
+    btn.dataset.effect = effectName;
+    btn.dataset.key = key;
+    btn.addEventListener('click', () => {
+      setEffect(effectName);
+      highlightEffectButton(btn);
+    })
