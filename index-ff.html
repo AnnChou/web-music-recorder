@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Music Recorder - Synth, Samples & Mic</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #222;
+    color: #eee;
+    padding: 20px;
+    user-select: none;
+  }
+  h2 {
+    margin-bottom: 0.2em;
+  }
+  #keysContainer button,
+  #effectsContainer button,
+  #samplesContainer button,
+  #micToggleBtn {
+    margin: 5px;
+    padding: 12px 16px;
+    font-size: 18px;
+    border-radius: 5px;
+    border: none;
+    background: #444;
+    color: #eee;
+    cursor: pointer;
+    min-width: 48px;
+    user-select: none;
+  }
+  button.key-active {
+    background: #4caf50;
+  }
+  button.effect-active {
+    background: #2196f3;
+  }
+  #status {
+    margin-top: 1em;
+    font-size: 14px;
+    height: 1.2em;
+  }
+</style>
+</head>
+<body>
+
+<h2>Web Music Recorder - Synth, Samples & Mic</h2>
+
+<p><strong>Play Notes (Keyboard or Click Buttons):</strong></p>
+<div id="keysContainer"></div>
+
+<p><strong>Toggle Effects (Z, X, C, V, B, N
