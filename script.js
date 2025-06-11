@@ -1,5 +1,4 @@
 window.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
   const startBtn = document.getElementById('start-btn');
   const modeToggleBtn = document.getElementById('mode-toggle');
   const keysContainer = document.getElementById('keys-container');
@@ -9,50 +8,57 @@ window.addEventListener('DOMContentLoaded', () => {
   const waveformCanvas = document.getElementById('waveform');
   const ctx = waveformCanvas.getContext('2d');
 
-  // Config
-  const synthKeys = ['a','s','d','f','g','h','j','k','l']; // 9 keys for G major scale notes
+  const synthKeys = ['a','s','d','f','g','h','j','k','l'];
   const gMajorNotes = ['G4','A4','B4','C5','D5','E5','F#5','G5','A5'];
-  const clipKeys = ['z','x','c','v','b','n','m']; // 7 clip keys
-  const recordKeys = ['1','2','3','4','5','6','7','8','9','0']; // 10 recording slots (0 = 10)
+  const clipKeys = ['z','x','c','v','b','n','m'];
+  const recordKeys = ['1','2','3','4','5','6','7','8','9','0'];
 
-  // Variables
-  let synth;
-  let delay;
-  let reverb;
-  let currentEffect = 'crisp';
+  let synth, delay, reverb, analyser, mediaRecorder;
   let mic = new Tone.UserMedia();
-  let micOn = false; // mode: false = synth, true = mic
-  let analyser;
-  let mediaRecorder;
+  let micOn = false;
+  let currentEffect = 'crisp';
   let recordedBlobs = [];
-  let recordings = new Array(10).fill(null); // Array to store 10 blobs
+  let recordings = new Array(10).fill(null);
+  let clips = new Array(7).fill(null);
   let currentRecordIndex = null;
   let isRecording = false;
-  let clips = new Array(7).fill(null); // 7 pre-recorded clips for playback
 
-  // Initialize UI keys for synth notes
+  // Create buttons for synth keys (with keyboard labels)
   synthKeys.forEach((key, i) => {
     const btn = document.createElement('button');
     btn.textContent = key.toUpperCase();
     btn.dataset.note = gMajorNotes[i];
+    btn.dataset.key = key;
+    btn.title = `Key: ${key.toUpperCase()} - Note: ${gMajorNotes[i]}`;
     keysContainer.appendChild(btn);
+
+    btn.addEventListener('mousedown', () => {
+      playNote(gMajorNotes[i]);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => {
+      btn.classList.remove('key-active');
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.classList.remove('key-active');
+    });
   });
 
-  // Initialize playback clip keys (Z-M)
+  // Create buttons for playback clips (Z-M)
   clipKeys.forEach(key => {
     const btn = document.createElement('button');
     btn.textContent = key.toUpperCase();
+    btn.title = `Playback clip key: ${key.toUpperCase()}`;
     clipKeysContainer.appendChild(btn);
   });
 
-  // Initialize recording buttons for 10 slots
+  // Create record controls for 10 slots
   for (let i = 0; i < 10; i++) {
-    const recDiv = document.createElement('div');
-    recDiv.style.display = 'inline-block';
-    recDiv.style.marginRight = '12px';
-    recDiv.style.textAlign = 'center';
-
     const slotNum = i + 1 === 10 ? '0' : (i + 1).toString();
+
+    const recDiv = document.createElement('div');
+    recDiv.style.marginBottom = '10px';
+
     const label = document.createElement('div');
     label.textContent = slotNum;
     recDiv.appendChild(label);
@@ -76,13 +82,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
     recordingsDiv.appendChild(recDiv);
 
-    // Attach event listeners
     recordBtn.addEventListener('click', () => startRecording(i, recordBtn, stopBtn, playBtn));
     stopBtn.addEventListener('click', () => stopRecording(i, recordBtn, stopBtn, playBtn));
     playBtn.addEventListener('click', () => playRecording(i));
   }
 
-  // Effect button events
+  // Effects buttons event
   effectButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       currentEffect = btn.dataset.effect;
@@ -92,16 +97,14 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Start audio context and setup
+  // Start audio context
   startBtn.addEventListener('click', async () => {
     await Tone.start();
     console.log('Audio started');
 
     setupSynth();
     setupAnalyser();
-
     setupMediaRecorderSource();
-
     drawWaveform();
 
     startBtn.disabled = true;
@@ -111,38 +114,38 @@ window.addEventListener('DOMContentLoaded', () => {
   // Mode toggle synth/mic
   modeToggleBtn.addEventListener('click', async () => {
     if (micOn) {
-      // Switch to Synth mode
+      // Switch to synth
       micOn = false;
-      modeToggleBtn.textContent = "Mode: Synth";
+      modeToggleBtn.textContent = 'Mode: Synth';
       await mic.close();
       setupSynth();
       setupAnalyser();
       setupMediaRecorderSource();
     } else {
-      // Switch to Mic mode
+      // Switch to mic
       try {
         await mic.open();
         micOn = true;
-        modeToggleBtn.textContent = "Mode: Mic";
+        modeToggleBtn.textContent = 'Mode: Mic';
         disconnectSynth();
         applyEffect();
         setupAnalyser();
         setupMediaRecorderSource();
       } catch(e) {
-        alert('Mic access denied or error: ' + e);
+        alert('Mic error or denied: ' + e);
         console.error(e);
       }
     }
   });
 
-  // Play synth note function (only in synth mode)
+  // Play note in synth mode
   function playNote(note) {
     if (!micOn && synth) {
       synth.triggerAttackRelease(note, '8n');
     }
   }
 
-  // Play pre-recorded clip from Blob URL
+  // Play clip by index
   function playClip(i) {
     if (clips[i]) {
       const audio = new Audio(clips[i]);
@@ -153,7 +156,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Start recording
   function startRecording(index, recordBtn, stopBtn, playBtn) {
     if (isRecording) {
-      alert('Already recording! Stop first.');
+      alert('Stop current recording first.');
       return;
     }
     currentRecordIndex = index;
@@ -163,7 +166,7 @@ window.addEventListener('DOMContentLoaded', () => {
     recordBtn.disabled = true;
     stopBtn.disabled = false;
     playBtn.disabled = true;
-    console.log('Recording started slot', index + 1);
+    console.log('Recording started on slot', index + 1);
   }
 
   // Stop recording
@@ -174,10 +177,10 @@ window.addEventListener('DOMContentLoaded', () => {
     recordBtn.disabled = false;
     stopBtn.disabled = true;
     playBtn.disabled = false;
-    console.log('Recording stopped slot', index + 1);
+    console.log('Recording stopped on slot', index + 1);
   }
 
-  // Play back recorded audio
+  // Play recording
   function playRecording(index) {
     if (!recordings[index]) {
       alert('No recording in slot ' + (index + 1));
@@ -185,7 +188,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     const blob = recordings[index];
     const url = URL.createObjectURL(blob);
-    clips[index % clips.length] = url; // Load into clips array for playback keys (optional)
+    clips[index % clips.length] = url; // optionally assign to clip playback
     const audio = new Audio(url);
     audio.play();
   }
@@ -195,21 +198,19 @@ window.addEventListener('DOMContentLoaded', () => {
     disconnectSynth();
 
     synth = new Tone.Synth();
-
     delay = new Tone.FeedbackDelay('8n', 0.5);
     reverb = new Tone.Reverb({ decay: 2, wet: 0.5 });
 
     applyEffect();
   }
 
-  // Disconnect synth and effects cleanly
   function disconnectSynth() {
     if (synth) synth.disconnect();
     if (delay) delay.disconnect();
     if (reverb) reverb.disconnect();
   }
 
-  // Apply selected effect to synth or mic
+  // Apply effect chain based on mode and selected effect
   function applyEffect() {
     if (micOn) {
       synth && synth.disconnect();
@@ -261,7 +262,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // Setup analyser to visualize waveform
   function setupAnalyser() {
     analyser = new Tone.Analyser('waveform', 256);
-
     if (micOn) {
       mic.connect(analyser);
     } else {
@@ -269,7 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Setup media recorder source depending on mode
+  // Setup media recorder source
   function setupMediaRecorderSource() {
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
@@ -300,7 +300,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Draw waveform loop
+  // Waveform draw loop
   function drawWaveform() {
     requestAnimationFrame(drawWaveform);
     if (!analyser) return;
@@ -308,6 +308,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const data = analyser.getValue();
     const width = waveformCanvas.width = waveformCanvas.clientWidth;
     const height = waveformCanvas.height = waveformCanvas.clientHeight;
+
     ctx.clearRect(0, 0, width, height);
 
     ctx.lineWidth = 2;
@@ -329,21 +330,23 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.stroke();
   }
 
-  // Keyboard input handling
+  // Handle key press events
   window.addEventListener('keydown', (e) => {
     if (!synth) return;
     const key = e.key.toLowerCase();
 
-    // Play synth notes in synth mode
+    // Synth keys play notes (only in synth mode)
     if (!micOn && synthKeys.includes(key)) {
       const idx = synthKeys.indexOf(key);
-      const btn = keysContainer.children[idx];
-      btn.classList.add('key-active');
-      setTimeout(() => btn.classList.remove('key-active'), 100);
+      const btn = keysContainer.querySelector(`button[data-key="${key}"]`);
+      if (btn) {
+        btn.classList.add('key-active');
+        setTimeout(() => btn.classList.remove('key-active'), 100);
+      }
       playNote(gMajorNotes[idx]);
     }
 
-    // Play clips for clip keys (z-m)
+    // Clip keys playback
     if (clipKeys.includes(key)) {
       const idx = clipKeys.indexOf(key);
       const btn = clipKeysContainer.children[idx];
@@ -352,23 +355,18 @@ window.addEventListener('DOMContentLoaded', () => {
       playClip(idx);
     }
 
-    // Recording start/stop/play via number keys 1-9,0 for slot 10
+    // Record keys (1-9,0)
     if (recordKeys.includes(key)) {
       const idx = recordKeys.indexOf(key);
-
-      // Find buttons
       const recDiv = recordingsDiv.children[idx];
       if (!recDiv) return;
-
       const recordBtn = recDiv.querySelector('button:nth-child(2)');
       const stopBtn = recDiv.querySelector('button:nth-child(3)');
       const playBtn = recDiv.querySelector('button:nth-child(4)');
 
-      // If not recording, start recording on press
       if (!isRecording) {
         startRecording(idx, recordBtn, stopBtn, playBtn);
       } else if (isRecording && currentRecordIndex === idx) {
-        // Stop recording if same slot
         stopRecording(idx, recordBtn, stopBtn, playBtn);
       }
     }
