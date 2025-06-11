@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Synth Keys</title>
+<style>
+  body { font-family: Arial; background: #222; color: #eee; padding: 20px; }
+  button { margin: 5px; padding: 12px 16px; font-size: 18px; border-radius: 5px; border: none; background: #444; color: #eee; cursor: pointer; }
+  button.key-active { background: #4caf50; }
+</style>
+</head>
+<body>
+
+<h2>Simple Synth Keys (G major scale)</h2>
+<button id="startBtn">Start Audio</button>
+<div id="keysContainer" style="margin-top:20px;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script>
+  const keys = ['a','s','d','f','g','h','j','k','l'];
+  const notes = ['G4','A4','B4','C5','D5','E5','F#5','G5','A5'];
+  const keysContainer = document.getElementById('keysContainer');
+  const startBtn = document.getElementById('startBtn');
+  let synth;
+
+  // Create buttons
+  keys.forEach((key, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = key.toUpperCase();
+    btn.dataset.note = notes[i];
+    btn.dataset.key = key;
+    keysContainer.appendChild(btn);
+
+    btn.addEventListener('mousedown', () => {
+      playNote(btn.dataset.note);
+      btn.classList.add('key-active');
+    });
+    btn.addEventListener('mouseup', () => btn.classList.remove('key-active'));
+    btn.addEventListener('mouseleave', () => btn.classList.remove('key-active'));
+  });
+
+  function playNote(note) {
+    if (synth) synth.triggerAttackRelease(note, '8n');
+  }
+
+  startBtn.addEventListener('click', async () => {
+    await Tone.start();
+    synth = new Tone.Synth().toDestination();
+    startBtn.disabled = true;
+    console.log('Audio started');
+  });
+
+  // Keyboard key press
+  window.addEventListener('keydown', e => {
+    if (!synth) return;
+    const key = e.key.toLowerCase();
+    if (!keys.includes(key)) return;
+    const btn = [...keysContainer.children].find(b => b.dataset.key === key);
+    if (btn) {
+      btn.classList.add('key-active');
+      playNote(btn.dataset.note);
+      setTimeout(() => btn.classList.remove('key-active'), 100);
+    }
+  });
+</script>
+
+</body>
+</html>
